@@ -1,0 +1,12 @@
+{
+    "scripts": {
+        "bs": "browser-sync start --server '.' --config bs-config.js --files '**/*'"
+    },
+    "dependencies": {
+        "d3-time-format": "^2.1.3",
+        "socket.io": "^2.2.0"
+    },
+    "devDependencies": {
+        "browser-sync": "^2.26.3"
+    }
+}
