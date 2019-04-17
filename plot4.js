@@ -219,6 +219,6 @@ function plotAllChart(plots){
         },
         barmode: 'relative'
     };
-    Plotly.newPlot('tester', plots);
+    Plotly.react('tester', plots);
     Plotly.relayout('tester', layout);
 }
