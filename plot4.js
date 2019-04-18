@@ -10,7 +10,7 @@ let timeBlockSize = 5000;      // ms単位
 
 let DataFrame = dfjs.DataFrame;
 let blockDf = new DataFrame([], ['time_block', 'buy_amount', 'sell_amount']);
-
+let isFirstPlot = true;
 
 class TradeServer {
     constructor(options) {
@@ -52,7 +52,7 @@ class TradeServer {
             if (that.blockDf.count() > rangeCount) {
                 that.blockDf = that.blockDf.slice(1, that.blockDf.count());
             }
-            that.pm.plot();
+            // that.pm.plot();
         };
         // plotChart();
     }
@@ -60,20 +60,22 @@ class TradeServer {
         let blockTime = getBlockTime(row['time']);
         let blockRow = this.blockDf.getRow(this.blockDf.count()-1);
         if (!blockRow || blockRow.get('time_block') != blockTime) {
-            console.log('not found :' + blockTime);
+            console.log(this.name + ' not found :' + blockTime);
             this.blockDf = this.blockDf.push([blockTime, 0, 0]);
         }
+        console.log('addTimeSize');
         if (row['type'] == 'sell') {
             this.blockDf = this.blockDf.setRow(this.blockDf.count() - 1, drow => drow.set('sell_amount', drow.get('sell_amount') + row['amount']));
         } else {
             this.blockDf = this.blockDf.setRow(this.blockDf.count() - 1, drow => drow.set('buy_amount', drow.get('buy_amount') + row['amount']));
         }
     }
-    getSellPlot(){
-        let timeRange = this.blockDf.toDict()['time_block'] ;
+    getSellPlot(_dfDict = null){
+        let dfDict = _dfDict || this.blockDf.toDict();
+        let timeRange = dfDict['time_block'];
         timeRange = timeRange.map(x => new Date(x));
 
-        let sell_amount_range = this.blockDf.toDict()['sell_amount'];
+        let sell_amount_range = dfDict['sell_amount'];
         sell_amount_range = sell_amount_range.map(x => x * -1);
         let sell_plot = {
             x: timeRange,
@@ -86,11 +88,12 @@ class TradeServer {
         };
         return sell_plot;
     }
-    getBuyPlot(){
-        let timeRange = this.blockDf.toDict()['time_block'] ;
+    getBuyPlot(_dfDict = null){
+        let dfDict = _dfDict || this.blockDf.toDict();
+        let timeRange = dfDict['time_block'] ;
         timeRange = timeRange.map(x => new Date(x));
 
-        let buy_amount_range = this.blockDf.toDict()['buy_amount'];
+        let buy_amount_range = dfDict['buy_amount'];
         let buy_plot = {
             x: timeRange,
             y: buy_amount_range,
@@ -101,6 +104,11 @@ class TradeServer {
             }
         };
         return buy_plot;
+    }
+    getSellBuyPlot() {
+        let dfDict = this.blockDf.toDict();
+        console.log(this.blockDf.count());
+        return [this.getSellPlot(dfDict), this.getBuyPlot(dfDict)];
     }
     addPlotManager(pm){
         this.pm = pm;
@@ -120,12 +128,12 @@ class PlotManager {
     add(server){
         this.servers.push(server);
     }
-    plot(){
-        let plots = this.servers.map(s => [s.getBuyPlot(), s.getSellPlot()]).reduce(
-            (a, c) => a.concat(c)
-        );
-        plotAllChart(plots);
-    }
+    // plot(){
+    //     let plots = this.servers.map(s => s.getSellBuyPlot()).reduce(
+    //         (a, c) => a.concat(c)
+    //     );
+    //     plotAllChart(plots);
+    // }
 }
 
 let server = new TradeServer({url: url,
@@ -151,7 +159,7 @@ let server2 = new TradeServer({url: binance_url,
             if (server2.blockDf.count() > rangeCount) {
                 server2.blockDf = server2.blockDf.slice(1, server2.blockDf.count());
             }
-            server2.pm.plot();
+            // server2.pm.plot();
         };
     };
     server2.setOnMessageFunction(messageFunction);
@@ -183,7 +191,7 @@ let messageFunction3 = function() {
         if (server3.blockDf.count() > rangeCount) {
             server3.blockDf = server3.blockDf.slice(1, server3.blockDf.count());
         }
-        server3.pm.plot();
+        // server3.pm.plot();
     };
 };
 server3.setOnMessageFunction(messageFunction3);
@@ -201,11 +209,19 @@ server.addPlotManager(pm);
 server2.addPlotManager(pm);
 server3.addPlotManager(pm);
 
+setInterval(function(){
+    let plots = pm.servers.map(s => s.getSellBuyPlot()).reduce(
+            (a, c) => a.concat(c)
+    );
+    plotAllChart(plots);
+}, 100);
+
 function getBlockTime(time){
     return Math.floor(time - (time % timeBlockSize));
 }
 
 function plotAllChart(plots){
+    console.log('plotAllCharts');
     let flatY = plots.map(data => [...data.y]).reduce(
         (a, c) => a.concat(c)
     );
@@ -219,6 +235,18 @@ function plotAllChart(plots){
         },
         barmode: 'relative'
     };
-    Plotly.react('tester', plots);
-    Plotly.relayout('tester', layout);
+    if (isFirstPlot) {
+
+        Plotly.plot('tester', plots, layout);
+        // Plotly.relayout('tester', layout);
+        isFirstPlot = false;
+    } else {
+        let mapx = plots.map(d => d.x);
+        let mapy = plots.map(d => d.y);
+        console.log(plots);
+        Plotly.restyle('tester', {'x': mapx,
+                                  'y': mapy,
+                                 });
+        Plotly.relayout('tester', layout);
+    }
 }
